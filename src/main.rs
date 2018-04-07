@@ -1,6 +1,9 @@
 extern crate ring;
+extern crate untrusted;
+// extern crate rand;
 
-use ring::{aead, digest};
+use ring::{aead, digest, agreement, rand, error};
+// use untrusted;
 
 fn aead_example() {
     // Pick our algorithm and message to send
@@ -52,8 +55,60 @@ fn sha256_example() {
     println!("Digest: {:?}", digest);
 }
 
+fn ecdh_example() -> Result<(), error::Unspecified> {
+    let rng = rand::SystemRandom::new();
+    // let rng = rand::thread_rng();
+
+    let my_private_key =
+        agreement::EphemeralPrivateKey::generate(&agreement::X25519, &rng)?;
+
+    // Make `my_public_key` a byte slice containing my public key. In a real
+    // application, this would be sent to the peer in an encoded protocol
+    // message.
+    let mut my_public_key = [0u8; agreement::PUBLIC_KEY_MAX_LEN];
+    let my_public_key =
+        &mut my_public_key[..my_private_key.public_key_len()];
+    my_private_key.compute_public_key(my_public_key)?;
+
+    // In a real application, the peer public key would be parsed out of a
+    // protocol message. Here we just generate one.
+    let mut peer_public_key_buf = [0u8; agreement::PUBLIC_KEY_MAX_LEN];
+    println!("public key lenth: {:?}", agreement::PUBLIC_KEY_MAX_LEN);
+    println!("my public key lenth: {:?}", my_private_key.public_key_len());
+    let peer_public_key;
+    {
+        let peer_private_key =
+            agreement::EphemeralPrivateKey::generate(&agreement::X25519, &rng)?;
+        peer_public_key =
+            &mut peer_public_key_buf[..peer_private_key.public_key_len()];
+        peer_private_key.compute_public_key(peer_public_key)?;
+    }
+    let peer_public_key = untrusted::Input::from(peer_public_key);
+
+    // In a real application, the protocol specifies how to determine what
+    // algorithm was used to generate the peer's private key. Here, we know it
+    // is X25519 since we just generated it.
+    let peer_public_key_alg = &agreement::X25519;
+
+    let shared_secret = agreement::agree_ephemeral(my_private_key, peer_public_key_alg,
+                                                   peer_public_key, ring::error::Unspecified,
+                                                   |_key_material| {
+                                                       // Usually, apply actual kdf
+                                                       Ok(())
+                                                       // error::Unspecified(())
+                                                       // error::Err()
+
+                                                   })?;
+    println!("shared_secret: {:?}", shared_secret);
+    Ok(())
+}
+
+
+
 fn main() {
-    sha256_example();
-    aead_example();
+    // sha256_example();
+    // aead_example();
+    println!("{:?}", ecdh_example());
+
 }
 

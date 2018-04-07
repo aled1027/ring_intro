@@ -4,4 +4,6 @@ version = "0.1.0"
 authors = ["Alex Ledger <alex.ledger@ll.mit.edu>"]
 
 [dependencies]
+rand = "0.4"
 ring = "*"
+untrusted = "*"
